@@ -11,7 +11,7 @@ import (
 	"github.com/Gulliby-development/aclvet/internal/acl"
 )
 
-const usage = "usage: aclvet check FILE\n       aclvet eval RULES FLOWS\n       aclvet diff OLD NEW\n"
+const usage = "usage: aclvet check FILE\n       aclvet eval [--denied] RULES FLOWS\n       aclvet diff OLD NEW\n"
 
 // Run executes the requested aclvet command using the supplied streams.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -70,6 +70,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 				action = "allow"
 			} else {
 				allAllowed = false
+			}
+			if parsed.deniedOnly && verdict.Allow {
+				continue
 			}
 			if verdict.Default {
 				fmt.Fprintf(&output, "%s %s -> %s", flow.Protocol, flow.SourceText, flow.DestinationText)

@@ -20,7 +20,7 @@ Or run it directly with `go run . ARGS`.
 
 ```
 usage: aclvet check FILE
-       aclvet eval RULES FLOWS
+       aclvet eval [--denied] RULES FLOWS
        aclvet diff OLD NEW
 ```
 
@@ -70,6 +70,16 @@ udp 10.9.9.9 -> 10.1.0.53 53: deny (line 9)
 icmp 10.0.0.1 -> 10.1.0.1: allow (line 8)
 tcp 192.168.1.1 -> 10.1.0.1 22: deny (line 3)
 ```
+
+Add `--denied` to `eval` to print only the denied flows, with the same lines as without it; the exit code does not change. `aclvet eval --denied edge.rules flows.txt` prints:
+
+```
+tcp 10.2.0.9 -> 10.1.0.7 22: deny (line 3)
+udp 10.9.9.9 -> 10.1.0.53 53: deny (line 9)
+tcp 192.168.1.1 -> 10.1.0.1 22: deny (line 3)
+```
+
+When every flow is allowed, nothing is printed and the exit code is 0. `--denied` is an option of `eval` only and takes no value.
 
 The revised list `new.rules`:
 

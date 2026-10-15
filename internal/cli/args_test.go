@@ -186,3 +186,113 @@ func TestDisplayArgument(t *testing.T) {
 		})
 	}
 }
+
+func TestParseArgsDeniedOption(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		want    invocation
+		wantErr string
+	}{
+		{
+			name: "flag before files",
+			args: []string{"eval", "--denied", "rules.txt", "flows.txt"},
+			want: invocation{command: "eval", files: []string{"rules.txt", "flows.txt"}, deniedOnly: true},
+		},
+		{
+			name: "flag between files",
+			args: []string{"eval", "rules.txt", "--denied", "flows.txt"},
+			want: invocation{command: "eval", files: []string{"rules.txt", "flows.txt"}, deniedOnly: true},
+		},
+		{
+			name: "flag after files",
+			args: []string{"eval", "rules.txt", "flows.txt", "--denied"},
+			want: invocation{command: "eval", files: []string{"rules.txt", "flows.txt"}, deniedOnly: true},
+		},
+		{
+			name: "repeated flag has no effect",
+			args: []string{"eval", "--denied", "rules.txt", "--denied", "flows.txt", "--denied"},
+			want: invocation{command: "eval", files: []string{"rules.txt", "flows.txt"}, deniedOnly: true},
+		},
+		{
+			name:    "check does not accept the flag",
+			args:    []string{"check", "--denied", "rules.txt"},
+			wantErr: "unknown option \"--denied\"",
+		},
+		{
+			name:    "diff does not accept the flag",
+			args:    []string{"diff", "--denied", "old.txt", "new.txt"},
+			wantErr: "unknown option \"--denied\"",
+		},
+		{
+			name:    "value spelling is not the flag",
+			args:    []string{"eval", "--denied=1", "rules.txt", "flows.txt"},
+			wantErr: "unknown option \"--denied=1\"",
+		},
+		{
+			name:    "all value spellings are rejected before argument count",
+			args:    []string{"eval", "--denied=yes"},
+			wantErr: "unknown option \"--denied=yes\"",
+		},
+		{
+			name:    "flag does not count as a file",
+			args:    []string{"eval", "--denied"},
+			wantErr: "missing argument",
+		},
+		{
+			name:    "extra positional argument is rejected with flag",
+			args:    []string{"eval", "--denied", "rules.txt", "flows.txt", "extra.txt"},
+			wantErr: "too many arguments",
+		},
+		{
+			name:    "unknown option precedes missing argument with flag",
+			args:    []string{"eval", "--denied", "--verbose"},
+			wantErr: "unknown option \"--verbose\"",
+		},
+		{
+			name:    "argument count precedes duplicate stdin with flag",
+			args:    []string{"eval", "--denied", "-", "--denied", "-", "extra.txt"},
+			wantErr: "too many arguments",
+		},
+		{
+			name:    "stdin cannot be supplied twice with flag",
+			args:    []string{"eval", "--denied", "-", "--denied", "-"},
+			wantErr: "standard input given twice",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, help, err := parseArgs(tt.args)
+			if tt.wantErr != "" {
+				if err == nil || err.Error() != tt.wantErr {
+					t.Fatalf("parseArgs(%q) error = %v, want %q", tt.args, err, tt.wantErr)
+				}
+				if help || !reflect.DeepEqual(got, invocation{}) {
+					t.Fatalf("parseArgs(%q) returned help %t and invocation %#v on error", tt.args, help, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseArgs(%q) error = %v, want nil", tt.args, err)
+			}
+			if help {
+				t.Fatalf("parseArgs(%q) reported help", tt.args)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("parseArgs(%q) invocation = %#v, want %#v", tt.args, got, tt.want)
+			}
+		})
+	}
+
+	t.Run("does not modify caller arguments", func(t *testing.T) {
+		args := []string{"eval", "--denied", "rules.txt", "flows.txt"}
+		original := append([]string(nil), args...)
+		if _, _, err := parseArgs(args); err != nil {
+			t.Fatalf("parseArgs(%q) error = %v, want nil", args, err)
+		}
+		if !reflect.DeepEqual(args, original) {
+			t.Fatalf("parseArgs modified arguments to %q, want %q", args, original)
+		}
+	})
+}
