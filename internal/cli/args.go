@@ -7,8 +7,9 @@ import (
 )
 
 type invocation struct {
-	command string
-	files   []string
+	command    string
+	files      []string
+	deniedOnly bool
 }
 
 func parseArgs(args []string) (invocation, bool, error) {
@@ -30,11 +31,17 @@ func parseArgs(args []string) (invocation, bool, error) {
 		return invocation{}, false, errors.New("unknown command \"" + displayArgument(command) + "\"")
 	}
 
-	files := args[1:]
-	for _, file := range files {
+	files := make([]string, 0, len(args)-1)
+	deniedOnly := false
+	for _, file := range args[1:] {
+		if command == "eval" && file == "--denied" {
+			deniedOnly = true
+			continue
+		}
 		if strings.HasPrefix(file, "-") && file != "-" {
 			return invocation{}, false, errors.New("unknown option \"" + displayArgument(file) + "\"")
 		}
+		files = append(files, file)
 	}
 	if len(files) < required {
 		return invocation{}, false, fmt.Errorf("missing argument")
@@ -53,7 +60,7 @@ func parseArgs(args []string) (invocation, bool, error) {
 		return invocation{}, false, fmt.Errorf("standard input given twice")
 	}
 
-	return invocation{command: command, files: files}, false, nil
+	return invocation{command: command, files: files, deniedOnly: deniedOnly}, false, nil
 }
 
 func displayArgument(value string) string {

@@ -38,7 +38,7 @@ deny  any any -> any
 `
 
 const expectedUsage = `usage: aclvet check FILE
-       aclvet eval RULES FLOWS
+       aclvet eval [--denied] RULES FLOWS
        aclvet diff OLD NEW
 `
 
@@ -379,5 +379,97 @@ func assertCLIResult(t *testing.T, code int, stdout, stderr string, wantCode int
 	}
 	if strings.Contains(stdout, "\r") || strings.Contains(stderr, "\r") {
 		t.Errorf("Run output contains CR: stdout %q, stderr %q", stdout, stderr)
+	}
+}
+
+func TestRunDeniedOnlyOutput(t *testing.T) {
+	dir := t.TempDir()
+	edgePath := writeCLIFile(t, dir, "edge.rules", []byte(referenceEdgeRules))
+	flowsPath := writeCLIFile(t, dir, "flows.txt", []byte(referenceFlows))
+
+	wantDenied := "tcp 10.2.0.9 -> 10.1.0.7 22: deny (line 3)\n" +
+		"udp 10.9.9.9 -> 10.1.0.53 53: deny (line 9)\n" +
+		"tcp 192.168.1.1 -> 10.1.0.1 22: deny (line 3)\n"
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "flag before files", args: []string{"eval", "--denied", edgePath, flowsPath}},
+		{name: "flag between files", args: []string{"eval", edgePath, "--denied", flowsPath}},
+		{name: "flag after files", args: []string{"eval", edgePath, flowsPath, "--denied"}},
+		{name: "repeated flag", args: []string{"eval", "--denied", edgePath, "--denied", flowsPath, "--denied"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code, stdout, stderr := runCLIForTest(tt.args, nil)
+			assertCLIResult(t, code, stdout, stderr, 1, wantDenied, "")
+		})
+	}
+
+	t.Run("without flag preserves all five output lines", func(t *testing.T) {
+		code, stdout, stderr := runCLIForTest([]string{"eval", edgePath, flowsPath}, nil)
+		want := "tcp 10.0.0.5 -> 10.1.2.3 443: allow (line 2)\n" +
+			"tcp 10.2.0.9 -> 10.1.0.7 22: deny (line 3)\n" +
+			"udp 10.9.9.9 -> 10.1.0.53 53: deny (line 9)\n" +
+			"icmp 10.0.0.1 -> 10.1.0.1: allow (line 8)\n" +
+			"tcp 192.168.1.1 -> 10.1.0.1 22: deny (line 3)\n"
+		assertCLIResult(t, code, stdout, stderr, 1, want, "")
+	})
+}
+
+func TestRunDeniedOnlyStdinAndAllAllowed(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("rules on stdin preserve default denial line", func(t *testing.T) {
+		flowsPath := writeCLIFile(t, dir, "default-flows.txt", []byte("tcp 10.0.0.5 10.1.2.3 80\ntcp 1.2.3.4 5.6.7.8 9\n"))
+		stdin := []byte("allow tcp 10.0.0.0/8 -> any 80\n")
+		code, stdout, stderr := runCLIForTest([]string{"eval", "--denied", "-", flowsPath}, stdin)
+		assertCLIResult(t, code, stdout, stderr, 1, "tcp 1.2.3.4 -> 5.6.7.8 9: deny (default)\n", "")
+	})
+
+	t.Run("flows on stdin are filtered", func(t *testing.T) {
+		rulesPath := writeCLIFile(t, dir, "stdin-flows.rules", []byte("allow tcp any -> any 80\n"))
+		stdin := []byte("tcp 10.0.0.5 10.1.2.3 80\ntcp 1.2.3.4 5.6.7.8 9\n")
+		code, stdout, stderr := runCLIForTest([]string{"eval", rulesPath, "--denied", "-"}, stdin)
+		assertCLIResult(t, code, stdout, stderr, 1, "tcp 1.2.3.4 -> 5.6.7.8 9: deny (default)\n", "")
+	})
+
+	t.Run("every allowed flow prints nothing and exits successfully", func(t *testing.T) {
+		rulesPath := writeCLIFile(t, dir, "allowed.rules", []byte(referenceEdgeRules))
+		flowsPath := writeCLIFile(t, dir, "allowed.txt", []byte("tcp 10.0.0.5 10.1.2.3 443\nicmp 10.0.0.1 10.1.0.1\n"))
+		code, stdout, stderr := runCLIForTest([]string{"eval", "--denied", rulesPath, flowsPath}, nil)
+		assertCLIResult(t, code, stdout, stderr, 0, "", "")
+	})
+}
+
+func TestRunDeniedOnlyErrors(t *testing.T) {
+	dir := t.TempDir()
+	rulesPath := writeCLIFile(t, dir, "rules.txt", []byte("allow tcp any -> any 80\n"))
+	flowsPath := writeCLIFile(t, dir, "flows.txt", []byte("tcp 1.2.3.4 5.6.7.8 80\n"))
+	badRulesPath := writeCLIFile(t, dir, "bad.rules", []byte("allow tcp any any 80\n"))
+	badFlowsPath := writeCLIFile(t, dir, "bad.flows", []byte("tcp 1.2.3.4 5.6.7.8\n"))
+	missingRulesPath := filepath.Join(dir, "missing.rules")
+
+	tests := []struct {
+		name       string
+		args       []string
+		wantStderr string
+	}{
+		{name: "check option is rejected", args: []string{"check", "--denied", rulesPath}, wantStderr: "aclvet: unknown option \"--denied\"\n"},
+		{name: "diff option is rejected", args: []string{"diff", "--denied", rulesPath, flowsPath}, wantStderr: "aclvet: unknown option \"--denied\"\n"},
+		{name: "value spelling is rejected", args: []string{"eval", "--denied=1", rulesPath, flowsPath}, wantStderr: "aclvet: unknown option \"--denied=1\"\n"},
+		{name: "other value spelling is rejected", args: []string{"eval", "--denied=true", rulesPath, flowsPath}, wantStderr: "aclvet: unknown option \"--denied=true\"\n"},
+		{name: "flag is not a positional file", args: []string{"eval", "--denied", rulesPath}, wantStderr: "aclvet: missing argument\n"},
+		{name: "too many positional files with flag", args: []string{"eval", rulesPath, "--denied", flowsPath, "extra.txt"}, wantStderr: "aclvet: too many arguments\n"},
+		{name: "duplicate stdin with repeated flag", args: []string{"eval", "--denied", "-", "--denied", "-"}, wantStderr: "aclvet: standard input given twice\n"},
+		{name: "missing file error is unchanged", args: []string{"eval", "--denied", missingRulesPath, flowsPath}, wantStderr: "aclvet: " + filepath.ToSlash(missingRulesPath) + ": cannot read the file\n"},
+		{name: "rule syntax error is unchanged", args: []string{"eval", badRulesPath, "--denied", flowsPath}, wantStderr: "aclvet: " + filepath.ToSlash(badRulesPath) + ":1: expected \"ACTION PROTO SRC -> DST [PORTS]\"\n"},
+		{name: "flow syntax error is unchanged", args: []string{"eval", rulesPath, "--denied", badFlowsPath}, wantStderr: "aclvet: " + filepath.ToSlash(badFlowsPath) + ":1: missing port\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code, stdout, stderr := runCLIForTest(tt.args, nil)
+			assertCLIResult(t, code, stdout, stderr, 2, "", tt.wantStderr)
+		})
 	}
 }
