@@ -37,7 +37,7 @@ allow icmp 10.0.0.0/16 -> any
 deny  any any -> any
 `
 
-const expectedUsage = `usage: aclvet check FILE
+const expectedUsage = `usage: aclvet check [--summary] FILE
        aclvet eval [--denied] RULES FLOWS
        aclvet diff OLD NEW
 `

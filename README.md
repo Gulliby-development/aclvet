@@ -19,12 +19,12 @@ Or run it directly with `go run . ARGS`.
 ## Usage
 
 ```
-usage: aclvet check FILE
+usage: aclvet check [--summary] FILE
        aclvet eval [--denied] RULES FLOWS
        aclvet diff OLD NEW
 ```
 
-Each file argument is a path, or `-` to read standard input. `check` reports rules that decide no traffic or can be removed without changing verdicts. `eval` prints the verdict for each flow. `diff` counts the traffic whose verdict changes between two rule lists.
+Each file argument is a path, or `-` to read standard input. `check` reports rules that decide no traffic or can be removed without changing verdicts; `check --summary` adds a last line with the counts. `eval` prints the verdict for each flow. `diff` counts the traffic whose verdict changes between two rule lists.
 
 ### Worked example
 
@@ -70,6 +70,17 @@ udp 10.9.9.9 -> 10.1.0.53 53: deny (line 9)
 icmp 10.0.0.1 -> 10.1.0.1: allow (line 8)
 tcp 192.168.1.1 -> 10.1.0.1 22: deny (line 3)
 ```
+
+Add `--summary` to `check` to print one more line after the findings: the number of findings, the number of rules and how many findings are shadowed and redundant. `aclvet check --summary edge.rules` prints:
+
+```
+edge.rules:4: AV001 shadowed by line 3
+edge.rules:7: AV001 shadowed by lines 5, 6
+edge.rules:9: AV002 redundant: removing it changes no verdict
+3 findings in 9 rules: 2 shadowed, 1 redundant
+```
+
+The summary line is printed only when there are findings: a clean file still prints `FILE: ok, N rules`. `--summary` is an option of `check` only and takes no value.
 
 Add `--denied` to `eval` to print only the denied flows, with the same lines as without it; the exit code does not change. `aclvet eval --denied edge.rules flows.txt` prints:
 
