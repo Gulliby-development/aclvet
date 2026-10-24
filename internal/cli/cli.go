@@ -11,7 +11,7 @@ import (
 	"github.com/Gulliby-development/aclvet/internal/acl"
 )
 
-const usage = "usage: aclvet check FILE\n       aclvet eval [--denied] RULES FLOWS\n       aclvet diff OLD NEW\n"
+const usage = "usage: aclvet check [--summary] FILE\n       aclvet eval [--denied] RULES FLOWS\n       aclvet diff OLD NEW\n"
 
 // Run executes the requested aclvet command using the supplied streams.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -46,6 +46,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		for _, finding := range findings {
 			fmt.Fprintf(&output, "%s:%d: %s %s\n",
 				displayPath(parsed.files[0]), finding.Line, finding.Code, finding.Message)
+		}
+		if parsed.summary {
+			output.WriteString(summaryLine(findings, len(rules)))
 		}
 		_, _ = io.WriteString(stdout, output.String())
 		return 1
@@ -200,6 +203,27 @@ func decisionLabel(verdict acl.Verdict) string {
 		return "default"
 	}
 	return fmt.Sprintf("line %d", verdict.Line)
+}
+
+func summaryLine(findings []acl.Finding, ruleCount int) string {
+	shadowed, redundant := 0, 0
+	for _, finding := range findings {
+		if finding.Code == "AV001" {
+			shadowed++
+		} else {
+			redundant++
+		}
+	}
+	return fmt.Sprintf("%d %s in %d %s: %d shadowed, %d redundant\n",
+		len(findings), countWord("finding", len(findings)),
+		ruleCount, countWord("rule", ruleCount), shadowed, redundant)
+}
+
+func countWord(word string, count int) string {
+	if count == 1 {
+		return word
+	}
+	return word + "s"
 }
 
 func plural(count *big.Int) string {

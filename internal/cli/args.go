@@ -10,6 +10,7 @@ type invocation struct {
 	command    string
 	files      []string
 	deniedOnly bool
+	summary    bool
 }
 
 func parseArgs(args []string) (invocation, bool, error) {
@@ -33,9 +34,14 @@ func parseArgs(args []string) (invocation, bool, error) {
 
 	files := make([]string, 0, len(args)-1)
 	deniedOnly := false
+	summary := false
 	for _, file := range args[1:] {
 		if command == "eval" && file == "--denied" {
 			deniedOnly = true
+			continue
+		}
+		if command == "check" && file == "--summary" {
+			summary = true
 			continue
 		}
 		if strings.HasPrefix(file, "-") && file != "-" {
@@ -60,7 +66,7 @@ func parseArgs(args []string) (invocation, bool, error) {
 		return invocation{}, false, fmt.Errorf("standard input given twice")
 	}
 
-	return invocation{command: command, files: files, deniedOnly: deniedOnly}, false, nil
+	return invocation{command: command, files: files, deniedOnly: deniedOnly, summary: summary}, false, nil
 }
 
 func displayArgument(value string) string {
