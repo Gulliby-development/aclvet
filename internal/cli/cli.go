@@ -11,7 +11,7 @@ import (
 	"github.com/Gulliby-development/aclvet/internal/acl"
 )
 
-const usage = "usage: aclvet check [--summary] FILE\n       aclvet eval [--denied] RULES FLOWS\n       aclvet diff OLD NEW\n"
+const usage = "usage: aclvet check [--summary] FILE\n       aclvet eval [--denied] [--summary] RULES FLOWS\n       aclvet diff OLD NEW\n"
 
 // Run executes the requested aclvet command using the supplied streams.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -66,11 +66,13 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		var output strings.Builder
 		allAllowed := true
+		allowed := 0
 		for _, flow := range flows {
 			verdict := acl.Evaluate(rules, flow)
 			action := "deny"
 			if verdict.Allow {
 				action = "allow"
+				allowed++
 			} else {
 				allAllowed = false
 			}
@@ -90,6 +92,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 				fmt.Fprintf(&output, " %s", flow.PortText)
 			}
 			fmt.Fprintf(&output, ": %s (line %d)\n", action, verdict.Line)
+		}
+		if parsed.summary {
+			output.WriteString(evalSummaryLine(len(flows), allowed))
 		}
 		_, _ = io.WriteString(stdout, output.String())
 		if allAllowed {
@@ -217,6 +222,10 @@ func summaryLine(findings []acl.Finding, ruleCount int) string {
 	return fmt.Sprintf("%d %s in %d %s: %d shadowed, %d redundant\n",
 		len(findings), countWord("finding", len(findings)),
 		ruleCount, countWord("rule", ruleCount), shadowed, redundant)
+}
+
+func evalSummaryLine(flowCount, allowed int) string {
+	return fmt.Sprintf("%d %s: %d allowed, %d denied\n", flowCount, countWord("flow", flowCount), allowed, flowCount-allowed)
 }
 
 func countWord(word string, count int) string {

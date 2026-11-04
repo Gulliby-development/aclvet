@@ -40,7 +40,7 @@ func parseArgs(args []string) (invocation, bool, error) {
 			deniedOnly = true
 			continue
 		}
-		if command == "check" && file == "--summary" {
+		if (command == "check" || command == "eval") && file == "--summary" {
 			summary = true
 			continue
 		}

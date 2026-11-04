@@ -38,7 +38,7 @@ deny  any any -> any
 `
 
 const expectedUsage = `usage: aclvet check [--summary] FILE
-       aclvet eval [--denied] RULES FLOWS
+       aclvet eval [--denied] [--summary] RULES FLOWS
        aclvet diff OLD NEW
 `
 
