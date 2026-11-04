@@ -75,11 +75,8 @@ func TestRunCheckWithoutSummaryIsUnchanged(t *testing.T) {
 	assertCLIResult(t, code, stdout, stderr, 1, filepath.ToSlash(path)+":2: AV001 shadowed by line 1\n", "")
 }
 
-func TestRunSummaryIsAnOptionOfCheckOnly(t *testing.T) {
-	code, stdout, stderr := runCLIForTest([]string{"eval", "--summary", "rules.txt", "flows.txt"}, nil)
-	assertCLIResult(t, code, stdout, stderr, 2, "", "aclvet: unknown option \"--summary\"\n")
-
-	code, stdout, stderr = runCLIForTest([]string{"diff", "--summary", "old.txt", "new.txt"}, nil)
+func TestRunSummaryIsAnOptionOfCheckAndEvalOnly(t *testing.T) {
+	code, stdout, stderr := runCLIForTest([]string{"diff", "--summary", "old.txt", "new.txt"}, nil)
 	assertCLIResult(t, code, stdout, stderr, 2, "", "aclvet: unknown option \"--summary\"\n")
 
 	code, stdout, stderr = runCLIForTest([]string{"check", "--summary=1", "rules.txt"}, nil)

@@ -20,11 +20,11 @@ Or run it directly with `go run . ARGS`.
 
 ```
 usage: aclvet check [--summary] FILE
-       aclvet eval [--denied] RULES FLOWS
+       aclvet eval [--denied] [--summary] RULES FLOWS
        aclvet diff OLD NEW
 ```
 
-Each file argument is a path, or `-` to read standard input. `check` reports rules that decide no traffic or can be removed without changing verdicts; `check --summary` adds a last line with the counts. `eval` prints the verdict for each flow. `diff` counts the traffic whose verdict changes between two rule lists.
+Each file argument is a path, or `-` to read standard input. `check` reports rules that decide no traffic or can be removed without changing verdicts; `check --summary` adds a last line with the counts. `eval` prints the verdict for each flow; `eval --summary` adds a last line with the counts. `diff` counts the traffic whose verdict changes between two rule lists.
 
 ### Worked example
 
@@ -80,7 +80,7 @@ edge.rules:9: AV002 redundant: removing it changes no verdict
 3 findings in 9 rules: 2 shadowed, 1 redundant
 ```
 
-The summary line is printed only when there are findings: a clean file still prints `FILE: ok, N rules`. `--summary` is an option of `check` only and takes no value.
+The summary line is printed only when there are findings: a clean file still prints `FILE: ok, N rules`. `--summary` takes no value and is an option of `check` and `eval` only.
 
 Add `--denied` to `eval` to print only the denied flows, with the same lines as without it; the exit code does not change. `aclvet eval --denied edge.rules flows.txt` prints:
 
@@ -90,7 +90,20 @@ udp 10.9.9.9 -> 10.1.0.53 53: deny (line 9)
 tcp 192.168.1.1 -> 10.1.0.1 22: deny (line 3)
 ```
 
-When every flow is allowed, nothing is printed and the exit code is 0. `--denied` is an option of `eval` only and takes no value.
+When every flow is allowed, nothing is printed (except the line of `--summary`, see below) and the exit code is 0. `--denied` is an option of `eval` only and takes no value.
+
+Add `--summary` to `eval` to print one more last line: the number of flows, and how many of them are allowed and denied. The line counts every flow, also with `--denied`. `aclvet eval --summary edge.rules flows.txt` prints:
+
+```
+tcp 10.0.0.5 -> 10.1.2.3 443: allow (line 2)
+tcp 10.2.0.9 -> 10.1.0.7 22: deny (line 3)
+udp 10.9.9.9 -> 10.1.0.53 53: deny (line 9)
+icmp 10.0.0.1 -> 10.1.0.1: allow (line 8)
+tcp 192.168.1.1 -> 10.1.0.1 22: deny (line 3)
+5 flows: 2 allowed, 3 denied
+```
+
+The summary line is printed also when every flow is allowed (with `--denied` it is then the only line), and the exit code does not change. `--summary` is an option of `check` and `eval` only and takes no value.
 
 The revised list `new.rules`:
 
